@@ -1,0 +1,11 @@
+services:
+  discord-live-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: discord-live-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data

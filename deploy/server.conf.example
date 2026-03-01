@@ -1,0 +1,21 @@
+# Copy this file to deploy/server.conf and update values.
+
+# Required: SSH target
+SSH_USER=ubuntu
+SSH_HOST=your.server.ip.or.domain
+
+# Optional: SSH port
+SSH_PORT=22
+
+# Local build/export settings
+IMAGE_NAME=discord-live-bot
+IMAGE_TAG=latest
+TAR_OUT_DIR=dist
+ENV_FILE_LOCAL=.env
+
+# Remote paths/settings
+REMOTE_DIR=/opt/discord-live-bot
+REMOTE_ENV_FILE=/opt/discord-live-bot/.env
+REMOTE_TAR_DIR=/opt/discord-live-bot/dist
+REMOTE_DATA_DIR=/opt/discord-live-bot/data
+CONTAINER_NAME=discord-live-bot
