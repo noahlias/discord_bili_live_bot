@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: discord-live-bot
     restart: unless-stopped
+    network_mode: ${DOCKER_NETWORK_MODE:-bridge}
     env_file:
       - .env
     volumes:

@@ -24,7 +24,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN addgroup -S app && adduser -S -G app appuser
+RUN apk add --no-cache ca-certificates \
+    && update-ca-certificates \
+    && addgroup -S app \
+    && adduser -S -G app appuser
 
 COPY --from=builder --chown=appuser:app /app/.venv /app/.venv
 

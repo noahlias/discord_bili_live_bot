@@ -12,6 +12,16 @@ IMAGE_NAME=discord-live-bot
 IMAGE_TAG=slimcheck
 TAR_OUT_DIR=dist
 ENV_FILE_LOCAL=.env
+UPLOAD_METHOD=rsync
+# Supported: rsync (default), scp, rclone
+# Optional for rclone:
+# - If set to a configured rclone remote name, that remote will be used.
+# - If empty, script uses inline SFTP backend with SSH_USER/SSH_HOST/SSH_PORT
+#   (works with Tailscale hostname directly).
+# Example configured remote: RCLONE_REMOTE=myserver
+RCLONE_REMOTE=
+# Optional key file for inline SFTP mode:
+# RCLONE_SFTP_KEY_FILE=~/.ssh/id_ed25519
 
 # Remote paths/settings
 REMOTE_DIR=/opt/discord-live-bot
@@ -19,3 +29,11 @@ REMOTE_ENV_FILE=/opt/discord-live-bot/.env
 REMOTE_TAR_DIR=/opt/discord-live-bot/dist
 REMOTE_DATA_DIR=/opt/discord-live-bot/data
 CONTAINER_NAME=discord-live-bot
+# Network mode for docker run on server.
+# Use `host` on Linux when bridge networking cannot resolve/reach external hosts.
+DOCKER_NETWORK_MODE=host
+# Optional DNS override for container runtime (comma separated).
+# Useful when docker inherits a broken resolver (e.g. Tailscale-only DNS).
+# Example:
+# DOCKER_DNS=1.1.1.1,8.8.8.8
+DOCKER_DNS=
