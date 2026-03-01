@@ -8,3 +8,4 @@ data/*.db
 tests
 dist
 scripts
+dist/**
