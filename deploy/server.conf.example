@@ -9,7 +9,7 @@ SSH_PORT=22
 
 # Local build/export settings
 IMAGE_NAME=discord-live-bot
-IMAGE_TAG=latest
+IMAGE_TAG=slimcheck
 TAR_OUT_DIR=dist
 ENV_FILE_LOCAL=.env
 

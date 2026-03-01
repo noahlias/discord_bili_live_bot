@@ -32,13 +32,13 @@ Build and run directly:
 
 ```bash
 cd discord_live_bot
-docker build -t discord-live-bot:latest .
+docker build -t discord-live-bot:slimcheck .
 docker run -d \
   --name discord-live-bot \
   --restart unless-stopped \
   --env-file .env \
   -v "$(pwd)/data:/app/data" \
-  discord-live-bot:latest
+  discord-live-bot:slimcheck
 ```
 
 Or use Compose:
@@ -61,12 +61,12 @@ Build a Linux `amd64` image tarball on your machine:
 ```bash
 cd discord_live_bot
 chmod +x scripts/build_linux_amd64_tar.sh scripts/deploy_from_tar.sh
-./scripts/build_linux_amd64_tar.sh latest
+./scripts/build_linux_amd64_tar.sh
 ```
 
 This creates:
 
-- `dist/discord-live-bot_latest_linux_amd64.tar.gz`
+- `dist/discord-live-bot_slimcheck_linux_amd64.tar.gz`
 
 Upload to server:
 
@@ -76,7 +76,7 @@ Upload to server:
 
 ```bash
 chmod +x scripts/deploy_from_tar.sh
-./scripts/deploy_from_tar.sh dist/discord-live-bot_latest_linux_amd64.tar.gz .env
+./scripts/deploy_from_tar.sh dist/discord-live-bot_slimcheck_linux_amd64.tar.gz .env
 ```
 
 Run in background is automatic (`docker run -d` + `--restart unless-stopped`).

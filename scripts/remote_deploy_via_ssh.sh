@@ -28,7 +28,7 @@ require_var SSH_HOST
 
 SSH_PORT="${SSH_PORT:-22}"
 IMAGE_NAME="${IMAGE_NAME:-discord-live-bot}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+IMAGE_TAG="${IMAGE_TAG:-slimcheck}"
 TAR_OUT_DIR="${TAR_OUT_DIR:-dist}"
 ENV_FILE_LOCAL="${ENV_FILE_LOCAL:-.env}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/discord-live-bot}"

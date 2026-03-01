@@ -6,7 +6,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_DIR}"
 
 IMAGE_NAME="${IMAGE_NAME:-discord-live-bot}"
-IMAGE_TAG="${1:-latest}"
+IMAGE_TAG="${1:-slimcheck}"
 OUT_DIR="${2:-dist}"
 PLATFORM="linux/amd64"
 
