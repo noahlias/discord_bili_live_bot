@@ -1,5 +1,10 @@
 # Discord Live Bot (Bilibili)
 
+
+![live_and_push](assets/live_and_push.png)
+
+![dynamic](assets/dynamic.png)
+
 Discord bot subproject for tracking Bilibili live status with slash commands, rich embeds, and link buttons.
 
 ## Features
