@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import io
 from datetime import datetime, timezone
 
 import discord
@@ -10,7 +12,10 @@ from loguru import logger
 from .bili_client import BiliClient, RoomInfo
 from .config import Settings
 from .db import SubscriptionStore
+from .dynamic_client import DynamicClient, DynamicFetchError
+from .dynamic_screenshot import DynamicScreenshotter
 from .rendering import (
+    dynamic_post_embed,
     empty_state_embed,
     error_embed,
     live_end_embed,
@@ -116,8 +121,90 @@ class SubscriptionCog(commands.Cog):
         embed.add_field(name="/unsubscribe uid", value="Unfollow a UID / 取消订阅", inline=False)
         embed.add_field(name="/list", value="Show all followed users / 查看全部订阅", inline=False)
         embed.add_field(name="/live", value="Show users currently live / 查看当前开播", inline=False)
+        embed.add_field(
+            name="/test_dynamic_push [uid]",
+            value="Send latest dynamic preview to notify channel / 推送动态测试",
+            inline=False,
+        )
         embed.add_field(name="/help", value="Show command help", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(
+        name="test_dynamic_push",
+        description="Push latest dynamic for testing to notify channel",
+    )
+    @app_commands.describe(uid="Optional Bilibili UID (default: first subscribed or 7261854)")
+    async def test_dynamic_push(self, interaction: discord.Interaction, uid: str | None = None) -> None:
+        await interaction.response.defer(thinking=True, ephemeral=True)
+
+        target_uid = (uid or "").strip()
+        if not target_uid:
+            subscribed = self.bot.store.list_uids()
+            target_uid = subscribed[0] if subscribed else "7261854"
+        if not target_uid.isdigit():
+            await interaction.followup.send(
+                embed=error_embed("UID must be numeric / UID 必须是数字。"),
+                ephemeral=True,
+            )
+            return
+
+        channel = await self.bot._resolve_notify_channel()
+        if channel is None:
+            await interaction.followup.send(
+                embed=error_embed("Failed to resolve notify channel / 通知频道获取失败。"),
+                ephemeral=True,
+            )
+            return
+
+        try:
+            dynamics = await self.bot.dynamic_client.fetch_user_dynamics(target_uid)
+        except DynamicFetchError as exc:
+            await interaction.followup.send(
+                embed=error_embed(f"Dynamic fetch failed: {exc}"),
+                ephemeral=True,
+            )
+            return
+        except Exception as exc:
+            logger.exception("Unexpected error in /test_dynamic_push")
+            await interaction.followup.send(
+                embed=error_embed(f"Unexpected error: {exc}"),
+                ephemeral=True,
+            )
+            return
+
+        if not dynamics:
+            await interaction.followup.send(
+                embed=_info_embed(
+                    "No dynamics / 无动态",
+                    f"UID **{target_uid}** has no readable dynamics right now.",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        item = max(dynamics, key=lambda value: value.dyn_id)
+        embed, file = await self.bot._build_dynamic_message(item, datetime.now(timezone.utc))
+        try:
+            if file is not None:
+                await channel.send(embed=embed, file=file)
+            else:
+                await channel.send(embed=embed)
+        except Exception:
+            logger.exception("Failed to send /test_dynamic_push message")
+            await interaction.followup.send(
+                embed=error_embed("Failed to send message to notify channel / 推送失败。"),
+                ephemeral=True,
+            )
+            return
+
+        channel_id = getattr(channel, "id", self.bot.settings.notify_channel_id)
+        await interaction.followup.send(
+            embed=_ok_embed(
+                "Dynamic test sent / 动态测试已发送",
+                f"UID **{target_uid}**, dynamic **{item.dyn_id}** sent to <#{channel_id}>.",
+            ),
+            ephemeral=True,
+        )
 
     async def _send_snapshot(self, interaction: discord.Interaction, *, live_only: bool) -> None:
         await interaction.response.defer(thinking=True)
@@ -162,6 +249,7 @@ class BiliDiscordBot(commands.Bot):
         settings: Settings,
         store: SubscriptionStore,
         bili_client: BiliClient,
+        dynamic_client: DynamicClient,
         tracker: StatusTracker,
     ):
         intents = discord.Intents.none()
@@ -171,6 +259,8 @@ class BiliDiscordBot(commands.Bot):
         self.settings = settings
         self.store = store
         self.bili_client = bili_client
+        self.dynamic_client = dynamic_client
+        self.dynamic_screenshotter = DynamicScreenshotter(settings)
         self.tracker = tracker
 
     async def setup_hook(self) -> None:
@@ -187,10 +277,17 @@ class BiliDiscordBot(commands.Bot):
 
         self.poll_live_status.change_interval(seconds=self.settings.poll_interval_seconds)
         self.poll_live_status.start()
+        if self.settings.dynamic_enabled:
+            self.poll_dynamic_status.change_interval(
+                seconds=self.settings.dynamic_poll_interval_seconds
+            )
+            self.poll_dynamic_status.start()
 
     async def close(self) -> None:
         if self.poll_live_status.is_running():
             self.poll_live_status.cancel()
+        if self.poll_dynamic_status.is_running():
+            self.poll_dynamic_status.cancel()
         self.store.close()
         await super().close()
 
@@ -236,6 +333,104 @@ class BiliDiscordBot(commands.Bot):
             except Exception:
                 logger.exception("Failed to send transition message for uid {}", change.uid)
 
+    async def _resolve_notify_channel(self) -> discord.abc.Messageable | None:
+        channel = self.get_channel(self.settings.notify_channel_id)
+        if channel is None:
+            try:
+                channel = await self.fetch_channel(self.settings.notify_channel_id)
+            except Exception:
+                logger.exception("Failed to fetch notify channel {}", self.settings.notify_channel_id)
+                return None
+        return channel
+
+    def _dynamic_screenshot_url(self, uid: str, dyn_id: int, dynamic_url: str) -> str:
+        if not self.settings.dynamic_screenshot_enabled:
+            return ""
+        template = self.settings.dynamic_screenshot_template
+        try:
+            return template.format(uid=uid, dyn_id=dyn_id, dynamic_url=dynamic_url)
+        except Exception:
+            logger.warning("Invalid BILI_DYNAMIC_SCREENSHOT_TEMPLATE, fallback to empty image url")
+            return ""
+
+    async def _build_dynamic_message(self, item, now: datetime) -> tuple[discord.Embed, discord.File | None]:
+        image_url = item.cover_url or self._dynamic_screenshot_url(item.uid, item.dyn_id, item.dynamic_url)
+        attachment: discord.File | None = None
+
+        if self.settings.dynamic_screenshot_enabled and self.settings.dynamic_browser_screenshot_enabled:
+            screenshot = await self.dynamic_screenshotter.capture(item.dyn_id)
+            if screenshot.image_bytes:
+                file_name = f"dynamic_{item.dyn_id}.jpg"
+                attachment = discord.File(io.BytesIO(screenshot.image_bytes), filename=file_name)
+                image_url = f"attachment://{file_name}"
+
+        return dynamic_post_embed(item, now, image_url=image_url), attachment
+
+    @tasks.loop(seconds=60)
+    async def poll_dynamic_status(self) -> None:
+        await self._poll_dynamic_once()
+
+    async def _poll_dynamic_once(self) -> None:
+        if not self.settings.dynamic_enabled:
+            return
+
+        uids = self.store.list_uids()
+        self.store.prune_dynamic_offsets(uids)
+        if not uids:
+            return
+
+        channel = await self._resolve_notify_channel()
+        if channel is None:
+            return
+
+        for index, uid in enumerate(uids):
+            await self._process_dynamic_uid(uid, channel)
+            if index < len(uids) - 1 and self.settings.dynamic_request_gap_seconds > 0:
+                await asyncio.sleep(self.settings.dynamic_request_gap_seconds)
+
+    async def _process_dynamic_uid(self, uid: str, channel: discord.abc.Messageable) -> None:
+        try:
+            dynamics = await self.dynamic_client.fetch_user_dynamics(uid)
+        except DynamicFetchError as exc:
+            logger.warning("Failed to fetch dynamics for uid {}: {}", uid, exc)
+            return
+        except Exception:
+            logger.exception("Unexpected error while fetching dynamics for uid {}", uid)
+            return
+
+        if not dynamics:
+            return
+
+        latest_dyn_id = max(item.dyn_id for item in dynamics)
+        offset = self.store.get_dynamic_offset(uid)
+        if offset is None:
+            self.store.upsert_dynamic_offset(uid, latest_dyn_id)
+            return
+
+        new_items = sorted((item for item in dynamics if item.dyn_id > offset), key=lambda item: item.dyn_id)
+        if not new_items:
+            return
+
+        sent_up_to = offset
+        now = datetime.now(timezone.utc)
+        for item in new_items:
+            try:
+                embed, file = await self._build_dynamic_message(item, now)
+                if file is not None:
+                    await channel.send(embed=embed, file=file)
+                else:
+                    await channel.send(embed=embed)
+                sent_up_to = max(sent_up_to, item.dyn_id)
+            except Exception:
+                logger.exception("Failed to send dynamic notification for uid {} dyn {}", uid, item.dyn_id)
+
+        if sent_up_to > offset:
+            self.store.upsert_dynamic_offset(uid, sent_up_to)
+
     @poll_live_status.before_loop
     async def _before_poll(self) -> None:
+        await self.wait_until_ready()
+
+    @poll_dynamic_status.before_loop
+    async def _before_dynamic_poll(self) -> None:
         await self.wait_until_ready()

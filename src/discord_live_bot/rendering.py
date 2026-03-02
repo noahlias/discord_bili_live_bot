@@ -6,6 +6,7 @@ from typing import Sequence
 import discord
 
 from .bili_client import RoomInfo
+from .dynamic_client import DynamicItem
 
 
 LIVE_COLOR = discord.Color.green()
@@ -72,6 +73,41 @@ def live_end_embed(room: RoomInfo, duration_seconds: int | None, detected_at: da
     if room.face:
         embed.set_thumbnail(url=room.face)
     embed.set_footer(text="Status changed / 状态变更")
+    return embed
+
+
+def dynamic_post_embed(
+    item: DynamicItem,
+    detected_at: datetime,
+    *,
+    image_url: str = "",
+) -> discord.Embed:
+    author = item.author_name or item.uid
+    type_labels = {
+        "forward": "转发动态",
+        "av": "视频投稿",
+        "pgc": "PGC 内容",
+        "word": "文字动态",
+        "draw": "图文动态",
+        "article": "专栏动态",
+        "music": "音频动态",
+        "live": "直播相关动态",
+        "ad": "广告动态",
+    }
+    type_text = type_labels.get(item.card_type_label, item.card_type_label)
+    embed = discord.Embed(
+        title=f"🆕 {author}",
+        description=f"发布了新的 {type_text}",
+        color=SUMMARY_COLOR,
+        timestamp=detected_at,
+        url=item.dynamic_url,
+    )
+    embed.add_field(name="UID", value=item.uid, inline=True)
+    embed.add_field(name="Dynamic ID", value=str(item.dyn_id), inline=True)
+    embed.add_field(name="链接", value=f"[查看动态]({item.dynamic_url})", inline=False)
+    if image_url:
+        embed.set_image(url=image_url)
+    embed.set_footer(text="Dynamic Notification / 动态通知")
     return embed
 
 

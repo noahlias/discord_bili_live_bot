@@ -5,10 +5,12 @@ Discord bot subproject for tracking Bilibili live status with slash commands, ri
 ## Features
 
 - Slash commands: `/subscribe`, `/unsubscribe`, `/list`, `/live`, `/help`
+- Test command: `/test_dynamic_push` to send a real dynamic preview immediately
 - `/unsubscribe` supports UID autocomplete from current subscriptions
 - Rich Discord embeds for live/offline transitions
 - URL buttons (`Watch Live`, `Bilibili Profile`)
 - SQLite subscription storage
+- Experimental dynamic notifications (best-effort, skipped on fetch failure)
 - Direct Bilibili API via `httpx` with normalized image URLs
 
 ## Requirements
@@ -39,6 +41,20 @@ docker run -d \
   --env-file .env \
   -v "$(pwd)/data:/app/data" \
   discord-live-bot:slimcheck
+```
+
+Image size notes for Linux x86_64:
+- Default build includes Playwright browser screenshot runtime and CJK fonts for Chinese text rendering (larger image).
+- To build a lighter image (disable browser screenshot runtime in image):
+
+```bash
+docker build --build-arg INSTALL_PLAYWRIGHT=0 -t discord-live-bot:lite .
+```
+
+When using lite image, set:
+
+```bash
+BILI_DYNAMIC_BROWSER_SCREENSHOT_ENABLED=false
 ```
 
 Or use Compose:
@@ -174,8 +190,34 @@ You can also pass a custom config path:
 - `DISCORD_NOTIFY_CHANNEL_ID`: Channel to push live/offline notifications
 - `DISCORD_GUILD_ID`: Optional guild id for faster command sync during development
 - `POLL_INTERVAL_SECONDS`: Polling interval, default `30`
+- `BILI_DYNAMIC_ENABLED`: Enable dynamic notifications, default `false`
+- `BILI_DYNAMIC_POLL_INTERVAL_SECONDS`: Dynamic polling interval, default `60`, minimum `20`
+- `BILI_DYNAMIC_REQUEST_GAP_SECONDS`: Delay between UID dynamic requests, default `3`
+- `BILI_DYNAMIC_SCREENSHOT_ENABLED`: Enable screenshot/cover image on dynamic cards, default `true`
+- `BILI_DYNAMIC_BROWSER_SCREENSHOT_ENABLED`: Prefer real browser screenshot capture, default `true`
+- `BILI_DYNAMIC_BROWSER_TIMEOUT_SECONDS`: Browser screenshot timeout, default `25`
+- `BILI_DYNAMIC_BROWSER_UA`: Browser UA for dynamic page rendering
+- `BILI_DYNAMIC_CAPTCHA_ADDRESS`: Optional captcha solver server address (Haruka style)
+- `BILI_DYNAMIC_CAPTCHA_TOKEN`: Optional captcha solver token
+- `BILI_DYNAMIC_SCREENSHOT_TEMPLATE`: Fallback screenshot URL template when browser capture is unavailable
 - `SQLITE_PATH`: SQLite file path, default `data/subscriptions.db`
 - `LOG_LEVEL`: `DEBUG`/`INFO`/`WARNING`/`ERROR`
+
+### Screenshot Prerequisite (Local Non-Docker)
+
+Browser screenshot requires Playwright Chromium runtime:
+
+```bash
+uv run playwright install chromium
+```
+
+Docker image already installs Chromium and required runtime libraries at build time, so no extra Playwright install step is needed inside container.
+
+Optional captcha solving (Haruka-style) can be enabled by installing solver package manually:
+
+```bash
+uv add aunly-captcha-solver
+```
 
 ## Discord Permissions
 

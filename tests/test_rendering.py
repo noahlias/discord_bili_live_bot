@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from discord_live_bot.bili_client import RoomInfo
+from discord_live_bot.dynamic_client import DynamicItem
 from discord_live_bot.rendering import live_end_embed, live_start_embed, live_start_view, snapshot_embeds
 
 
@@ -46,3 +47,22 @@ def test_snapshot_embeds_pagination_and_counts():
     assert embeds[0].fields[0].value == "2"
     assert embeds[1].thumbnail.url == "https://example.com/face.png"
     assert embeds[1].image.url == "https://example.com/cover.png"
+
+
+def test_dynamic_embed_shape():
+    from discord_live_bot.rendering import dynamic_post_embed
+
+    item = DynamicItem(
+        uid="7261854",
+        dyn_id=123456,
+        card_type=7,
+        card_type_label="draw",
+        author_name="tester",
+        cover_url="https://example.com/dynamic.jpg",
+    )
+    embed = dynamic_post_embed(item, datetime.now(timezone.utc))
+
+    assert "tester" in embed.title.lower()
+    assert embed.fields[0].value == "7261854"
+    assert embed.fields[1].value == "123456"
+    assert embed.fields[2].name == "链接"

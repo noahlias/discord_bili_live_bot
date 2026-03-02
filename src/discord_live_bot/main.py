@@ -9,6 +9,7 @@ from .bili_client import BiliClient
 from .bot import BiliDiscordBot
 from .config import Settings
 from .db import SubscriptionStore
+from .dynamic_client import DynamicClient
 from .status_tracker import StatusTracker
 
 
@@ -28,7 +29,14 @@ def main() -> None:
 
     store = SubscriptionStore(settings.sqlite_path)
     client = BiliClient()
+    dynamic_client = DynamicClient()
     tracker = StatusTracker()
 
-    bot = BiliDiscordBot(settings=settings, store=store, bili_client=client, tracker=tracker)
+    bot = BiliDiscordBot(
+        settings=settings,
+        store=store,
+        bili_client=client,
+        dynamic_client=dynamic_client,
+        tracker=tracker,
+    )
     bot.run(settings.discord_token, log_handler=None)

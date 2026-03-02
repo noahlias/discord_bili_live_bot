@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package bilibili.app.dynamic.v2;
+
+service Dynamic {
+  rpc DynSpace (DynSpaceReq) returns (DynSpaceRsp);
+}
+
+message DynSpaceReq {
+  int64 host_uid = 1;
+  string history_offset = 2;
+  int64 page = 5;
+}
+
+message DynSpaceRsp {
+  repeated DynamicItem list = 1;
+  string history_offset = 2;
+  bool has_more = 3;
+}
+
+message DynamicItem {
+  int32 card_type = 1;
+  repeated Module modules = 3;
+  Extend extend = 4;
+}
+
+message Module {
+  ModuleAuthor module_author = 2;
+  ModuleDynamic module_dynamic = 5;
+}
+
+message ModuleAuthor {
+  UserInfo author = 3;
+}
+
+message UserInfo {
+  string name = 2;
+}
+
+message ModuleDynamic {
+  MdlDynArchive dyn_archive = 2;
+  MdlDynDraw dyn_draw = 7;
+}
+
+message MdlDynArchive {
+  string cover = 2;
+}
+
+message MdlDynDraw {
+  repeated MdlDynDrawItem items = 1;
+}
+
+message MdlDynDrawItem {
+  string src = 1;
+}
+
+message Extend {
+  string dyn_id_str = 1;
+  string orig_img_url = 5;
+}
