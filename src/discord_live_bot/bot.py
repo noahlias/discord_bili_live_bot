@@ -12,6 +12,7 @@ from loguru import logger
 from .bili_client import BiliClient, RoomInfo
 from .config import Settings
 from .db import SubscriptionStore
+from .dota import DotaClient, DotaCog, DotaService
 from .dynamic_client import DynamicClient, DynamicFetchError
 from .dynamic_screenshot import DynamicScreenshotter
 from .rendering import (
@@ -121,6 +122,11 @@ class SubscriptionCog(commands.Cog):
         embed.add_field(name="/unsubscribe uid", value="Unfollow a UID / 取消订阅", inline=False)
         embed.add_field(name="/list", value="Show all followed users / 查看全部订阅", inline=False)
         embed.add_field(name="/live", value="Show users currently live / 查看当前开播", inline=False)
+        embed.add_field(
+            name="/dota_player account [match_id]",
+            value="Search Dota2 profile and recent match cards / 查询 Dota2 战绩",
+            inline=False,
+        )
         embed.add_field(
             name="/test_dynamic_push [uid]",
             value="Send latest dynamic preview to notify channel / 推送动态测试",
@@ -251,6 +257,7 @@ class BiliDiscordBot(commands.Bot):
         bili_client: BiliClient,
         dynamic_client: DynamicClient,
         tracker: StatusTracker,
+        dota_service: DotaService | None = None,
     ):
         intents = discord.Intents.none()
         intents.guilds = True
@@ -262,9 +269,17 @@ class BiliDiscordBot(commands.Bot):
         self.dynamic_client = dynamic_client
         self.dynamic_screenshotter = DynamicScreenshotter(settings)
         self.tracker = tracker
+        if dota_service is None:
+            dota_service = DotaService(
+                DotaClient(timeout_seconds=settings.dota_http_timeout_seconds),
+                recent_match_limit=settings.dota_recent_match_limit,
+            )
+        self.dota_service = dota_service
 
     async def setup_hook(self) -> None:
         await self.add_cog(SubscriptionCog(self))
+        if self.settings.dota_enabled:
+            await self.add_cog(DotaCog(self))
 
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)

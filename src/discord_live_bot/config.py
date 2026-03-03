@@ -64,6 +64,9 @@ class Settings:
     dynamic_captcha_token: str
     sqlite_path: str
     log_level: str
+    dota_enabled: bool = True
+    dota_recent_match_limit: int = 5
+    dota_http_timeout_seconds: int = 15
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -172,6 +175,23 @@ class Settings:
         dynamic_captcha_address = os.getenv("BILI_DYNAMIC_CAPTCHA_ADDRESS", "").strip()
         dynamic_captcha_token = os.getenv("BILI_DYNAMIC_CAPTCHA_TOKEN", "harukabot").strip() or "harukabot"
 
+        dota_enabled = _optional_bool("DOTA_ENABLED", True)
+        dota_recent_match_limit_raw = os.getenv("DOTA_RECENT_MATCH_LIMIT", "5").strip() or "5"
+        try:
+            dota_recent_match_limit = int(dota_recent_match_limit_raw)
+        except ValueError as exc:
+            raise ValueError("DOTA_RECENT_MATCH_LIMIT must be an integer") from exc
+        if dota_recent_match_limit <= 0 or dota_recent_match_limit > 10:
+            raise ValueError("DOTA_RECENT_MATCH_LIMIT must be between 1 and 10")
+
+        dota_http_timeout_raw = os.getenv("DOTA_HTTP_TIMEOUT_SECONDS", "15").strip() or "15"
+        try:
+            dota_http_timeout_seconds = int(dota_http_timeout_raw)
+        except ValueError as exc:
+            raise ValueError("DOTA_HTTP_TIMEOUT_SECONDS must be an integer") from exc
+        if dota_http_timeout_seconds <= 0:
+            raise ValueError("DOTA_HTTP_TIMEOUT_SECONDS must be > 0")
+
         sqlite_path = os.getenv("SQLITE_PATH", "data/subscriptions.db").strip() or "data/subscriptions.db"
         log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
@@ -196,6 +216,9 @@ class Settings:
             dynamic_browser_ua=dynamic_browser_ua,
             dynamic_captcha_address=dynamic_captcha_address,
             dynamic_captcha_token=dynamic_captcha_token,
+            dota_enabled=dota_enabled,
+            dota_recent_match_limit=dota_recent_match_limit,
+            dota_http_timeout_seconds=dota_http_timeout_seconds,
             sqlite_path=sqlite_path,
             log_level=log_level,
         )

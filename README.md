@@ -9,7 +9,7 @@ Discord bot subproject for tracking Bilibili live status with slash commands, ri
 
 ## Features
 
-- Slash commands: `/subscribe`, `/unsubscribe`, `/list`, `/live`, `/help`
+- Slash commands: `/subscribe`, `/unsubscribe`, `/list`, `/live`, `/dota_player`, `/help`
 - Test command: `/test_dynamic_push` to send a real dynamic preview immediately
 - `/unsubscribe` supports UID autocomplete from current subscriptions
 - Rich Discord embeds for live/offline transitions
@@ -17,6 +17,8 @@ Discord bot subproject for tracking Bilibili live status with slash commands, ri
 - SQLite subscription storage
 - Experimental dynamic notifications (best-effort, skipped on fetch failure)
 - Direct Bilibili API via `httpx` with normalized image URLs
+- Dota2 search command powered by OpenDota (`/dota_player`)
+- `/dota_player` account autocomplete learns from your search history and ranks by frequency
 
 ## Requirements
 
@@ -211,8 +213,26 @@ You can also pass a custom config path:
 - `BILI_DYNAMIC_CAPTCHA_ADDRESS`: Optional captcha solver server address (Haruka style)
 - `BILI_DYNAMIC_CAPTCHA_TOKEN`: Optional captcha solver token
 - `BILI_DYNAMIC_SCREENSHOT_TEMPLATE`: Fallback screenshot URL template when browser capture is unavailable
+- `DOTA_ENABLED`: Enable `/dota_player` command, default `true`
+- `DOTA_RECENT_MATCH_LIMIT`: Number of recent matches displayed, default `5` (range `1..10`)
+- `DOTA_HTTP_TIMEOUT_SECONDS`: OpenDota request timeout, default `15`
 - `SQLITE_PATH`: SQLite file path, default `data/subscriptions.db`
 - `LOG_LEVEL`: `DEBUG`/`INFO`/`WARNING`/`ERROR`
+
+## Dota2 Search Command
+
+- `/dota_player account:<account_id_or_steam64>`
+- `/dota_player account:<account_id_or_steam64> match_id:<match_id>`
+- When `match_id` is provided, the bot sends an OpenDota-overview-style screenshot card (Radiant vs Dire, 10-player rows) with custom renderer fallback.
+- Without `match_id`, recent matches are shown as an OpenDota player-matches screenshot card (rows controlled by `DOTA_RECENT_MATCH_LIMIT`, typically 5 or 10), with table-embed fallback on capture failure.
+- Without `match_id`, the bot also sends a dropdown selector so you can click a recent match and open detail directly (no manual `match_id` typing).
+
+Example test account:
+
+```bash
+# account_id
+/dota_player account:455095162
+```
 
 ### Screenshot Prerequisite (Local Non-Docker)
 

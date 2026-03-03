@@ -28,6 +28,16 @@ class SubscriptionStore:
             )
             """
         )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dota_searches (
+                account_id TEXT PRIMARY KEY,
+                persona_name TEXT NOT NULL,
+                search_count INTEGER NOT NULL,
+                last_searched_at INTEGER NOT NULL
+            )
+            """
+        )
         self._conn.commit()
 
     def add_uid(self, uid: str) -> bool:
@@ -87,6 +97,79 @@ class SubscriptionStore:
             tuple(valid_uids),
         )
         self._conn.commit()
+
+    def record_dota_search(self, account_id: str, persona_name: str) -> None:
+        account = account_id.strip()
+        if not account:
+            return
+
+        now = int(time.time())
+        display_name = persona_name.strip()
+        self._conn.execute(
+            """
+            INSERT INTO dota_searches(account_id, persona_name, search_count, last_searched_at)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(account_id) DO UPDATE SET
+              persona_name = CASE
+                  WHEN excluded.persona_name <> '' THEN excluded.persona_name
+                  ELSE dota_searches.persona_name
+              END,
+              search_count = dota_searches.search_count + 1,
+              last_searched_at = excluded.last_searched_at
+            """,
+            (account, display_name, now),
+        )
+        self._conn.commit()
+
+    def list_dota_searches(
+        self,
+        query: str = "",
+        *,
+        limit: int = 25,
+    ) -> list[tuple[str, str, int]]:
+        safe_limit = max(1, min(int(limit), 100))
+        typed = query.strip()
+        if not typed:
+            rows = self._conn.execute(
+                """
+                SELECT account_id, persona_name, search_count
+                FROM dota_searches
+                ORDER BY search_count DESC, last_searched_at DESC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        else:
+            account_contains = f"%{typed}%"
+            account_prefix = f"{typed}%"
+            lowered = typed.lower()
+            name_contains = f"%{lowered}%"
+            name_prefix = f"{lowered}%"
+            rows = self._conn.execute(
+                """
+                SELECT account_id, persona_name, search_count
+                FROM dota_searches
+                WHERE account_id LIKE ? OR lower(persona_name) LIKE ?
+                ORDER BY
+                  CASE
+                    WHEN account_id LIKE ? THEN 0
+                    WHEN lower(persona_name) LIKE ? THEN 1
+                    ELSE 2
+                  END,
+                  search_count DESC,
+                  last_searched_at DESC
+                LIMIT ?
+                """,
+                (
+                    account_contains,
+                    name_contains,
+                    account_prefix,
+                    name_prefix,
+                    safe_limit,
+                ),
+            ).fetchall()
+
+        return [(str(account), str(name or ""), int(count)) for account, name, count in rows]
 
     def close(self) -> None:
         self._conn.close()

@@ -9,6 +9,7 @@ from .bili_client import BiliClient
 from .bot import BiliDiscordBot
 from .config import Settings
 from .db import SubscriptionStore
+from .dota import DotaClient, DotaService
 from .dynamic_client import DynamicClient
 from .status_tracker import StatusTracker
 
@@ -30,6 +31,11 @@ def main() -> None:
     store = SubscriptionStore(settings.sqlite_path)
     client = BiliClient()
     dynamic_client = DynamicClient()
+    dota_client = DotaClient(timeout_seconds=settings.dota_http_timeout_seconds)
+    dota_service = DotaService(
+        dota_client,
+        recent_match_limit=settings.dota_recent_match_limit,
+    )
     tracker = StatusTracker()
 
     bot = BiliDiscordBot(
@@ -38,5 +44,6 @@ def main() -> None:
         bili_client=client,
         dynamic_client=dynamic_client,
         tracker=tracker,
+        dota_service=dota_service,
     )
     bot.run(settings.discord_token, log_handler=None)
