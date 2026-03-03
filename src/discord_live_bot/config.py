@@ -55,6 +55,10 @@ class Settings:
     dynamic_browser_timeout_seconds: int
     dynamic_browser_max_concurrency: int
     dynamic_browser_args: tuple[str, ...]
+    dynamic_browser_capture_url_template: str
+    dynamic_browser_long_screenshot_enabled: bool
+    dynamic_browser_opus_fallback_enabled: bool
+    dynamic_browser_opus_fallback_url_template: str
     dynamic_browser_ua: str
     dynamic_captcha_address: str
     dynamic_captcha_token: str
@@ -128,6 +132,28 @@ class Settings:
         dynamic_browser_args = tuple(
             value.strip() for value in dynamic_browser_args_raw.split(",") if value.strip()
         )
+        dynamic_browser_capture_url_template = (
+            os.getenv(
+                "BILI_DYNAMIC_BROWSER_CAPTURE_URL_TEMPLATE",
+                "https://m.bilibili.com/dynamic/{dyn_id}",
+            ).strip()
+            or "https://m.bilibili.com/dynamic/{dyn_id}"
+        )
+        dynamic_browser_long_screenshot_enabled = _optional_bool(
+            "BILI_DYNAMIC_BROWSER_LONG_SCREENSHOT_ENABLED",
+            False,
+        )
+        dynamic_browser_opus_fallback_enabled = _optional_bool(
+            "BILI_DYNAMIC_BROWSER_OPUS_FALLBACK_ENABLED",
+            True,
+        )
+        dynamic_browser_opus_fallback_url_template = (
+            os.getenv(
+                "BILI_DYNAMIC_BROWSER_OPUS_FALLBACK_URL_TEMPLATE",
+                "https://www.bilibili.com/opus/{dyn_id}",
+            ).strip()
+            or "https://www.bilibili.com/opus/{dyn_id}"
+        )
         dynamic_browser_ua = (
             os.getenv(
                 "BILI_DYNAMIC_BROWSER_UA",
@@ -163,6 +189,10 @@ class Settings:
             dynamic_browser_timeout_seconds=dynamic_browser_timeout_seconds,
             dynamic_browser_max_concurrency=dynamic_browser_max_concurrency,
             dynamic_browser_args=dynamic_browser_args,
+            dynamic_browser_capture_url_template=dynamic_browser_capture_url_template,
+            dynamic_browser_long_screenshot_enabled=dynamic_browser_long_screenshot_enabled,
+            dynamic_browser_opus_fallback_enabled=dynamic_browser_opus_fallback_enabled,
+            dynamic_browser_opus_fallback_url_template=dynamic_browser_opus_fallback_url_template,
             dynamic_browser_ua=dynamic_browser_ua,
             dynamic_captcha_address=dynamic_captcha_address,
             dynamic_captcha_token=dynamic_captcha_token,

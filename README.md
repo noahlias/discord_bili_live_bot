@@ -203,6 +203,10 @@ You can also pass a custom config path:
 - `BILI_DYNAMIC_BROWSER_TIMEOUT_SECONDS`: Browser screenshot timeout, default `25`
 - `BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY`: Max in-flight browser screenshot captures, default `1`
 - `BILI_DYNAMIC_BROWSER_ARGS`: Comma-separated Chromium launch args, default `--disable-dev-shm-usage`
+- `BILI_DYNAMIC_BROWSER_CAPTURE_URL_TEMPLATE`: Browser capture URL template, default `https://m.bilibili.com/dynamic/{dyn_id}` (supports `{dyn_id}` and `{dynamic_url}`)
+- `BILI_DYNAMIC_BROWSER_LONG_SCREENSHOT_ENABLED`: Force full-page long screenshot mode, default `false`
+- `BILI_DYNAMIC_BROWSER_OPUS_FALLBACK_ENABLED`: Retry with opus page when app-side capture is gated, default `true`
+- `BILI_DYNAMIC_BROWSER_OPUS_FALLBACK_URL_TEMPLATE`: Opus fallback URL template, default `https://www.bilibili.com/opus/{dyn_id}`
 - `BILI_DYNAMIC_BROWSER_UA`: Browser UA for dynamic page rendering
 - `BILI_DYNAMIC_CAPTCHA_ADDRESS`: Optional captcha solver server address (Haruka style)
 - `BILI_DYNAMIC_CAPTCHA_TOKEN`: Optional captcha solver token
@@ -225,6 +229,15 @@ For Linux Docker stability, keep:
 ```bash
 BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY=1
 BILI_DYNAMIC_BROWSER_ARGS=--disable-dev-shm-usage
+```
+
+For app-style long screenshot testing, you can use:
+
+```bash
+BILI_DYNAMIC_BROWSER_CAPTURE_URL_TEMPLATE=https://t.bilibili.com/{dyn_id}
+BILI_DYNAMIC_BROWSER_LONG_SCREENSHOT_ENABLED=true
+BILI_DYNAMIC_BROWSER_OPUS_FALLBACK_ENABLED=true
+BILI_DYNAMIC_BROWSER_OPUS_FALLBACK_URL_TEMPLATE=https://www.bilibili.com/opus/{dyn_id}
 ```
 
 Optional captcha solving (Haruka-style) can be enabled by installing solver package manually:

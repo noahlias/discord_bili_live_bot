@@ -359,7 +359,7 @@ class BiliDiscordBot(commands.Bot):
         attachment: discord.File | None = None
 
         if self.settings.dynamic_screenshot_enabled and self.settings.dynamic_browser_screenshot_enabled:
-            screenshot = await self.dynamic_screenshotter.capture(item.dyn_id)
+            screenshot = await self.dynamic_screenshotter.capture(item.dyn_id, item.dynamic_url)
             if screenshot.image_bytes:
                 file_name = f"dynamic_{item.dyn_id}.jpg"
                 attachment = discord.File(io.BytesIO(screenshot.image_bytes), filename=file_name)

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import pytest
 
 from discord_live_bot.config import Settings
-from discord_live_bot.dynamic_screenshot import DynamicScreenshotter
+from discord_live_bot.dynamic_screenshot import DynamicScreenshot, DynamicScreenshotter
 
 
 @dataclass
@@ -25,11 +25,18 @@ class _FakeState:
     browser_connected: bool = True
     gate_event: asyncio.Event | None = None
     first_goto_entered: asyncio.Event = field(default_factory=asyncio.Event)
+    last_goto_url: str = ""
+    full_page_screenshots: int = 0
+    card_screenshots: int = 0
 
 
 class _FakeElement:
+    def __init__(self, state: _FakeState):
+        self._state = state
+
     async def screenshot(self, *, type: str, quality: int) -> bytes:  # noqa: A002
         del type, quality
+        self._state.card_screenshots += 1
         return b"card"
 
 
@@ -41,6 +48,7 @@ class _FakePage:
     async def goto(self, url: str, *, wait_until: str, timeout: int) -> None:
         del wait_until, timeout
         self.url = url
+        self._state.last_goto_url = url
         self._state.first_goto_entered.set()
         if self._state.gate_event is not None:
             await self._state.gate_event.wait()
@@ -59,10 +67,11 @@ class _FakePage:
 
     async def query_selector(self, selector: str):
         del selector
-        return _FakeElement()
+        return _FakeElement(self._state)
 
     async def screenshot(self, *, full_page: bool, type: str, quality: int) -> bytes:  # noqa: A002
         del full_page, type, quality
+        self._state.full_page_screenshots += 1
         return b"full-page"
 
 
@@ -154,7 +163,15 @@ def _install_fake_playwright(monkeypatch: pytest.MonkeyPatch, state: _FakeState)
     monkeypatch.setitem(sys.modules, "playwright.async_api", async_api_module)
 
 
-def _settings(*, max_concurrency: int = 1, browser_args: tuple[str, ...] = ("--disable-dev-shm-usage",)) -> Settings:
+def _settings(
+    *,
+    max_concurrency: int = 1,
+    browser_args: tuple[str, ...] = ("--disable-dev-shm-usage",),
+    capture_url_template: str = "https://m.bilibili.com/dynamic/{dyn_id}",
+    long_screenshot_enabled: bool = False,
+    opus_fallback_enabled: bool = True,
+    opus_fallback_url_template: str = "https://www.bilibili.com/opus/{dyn_id}",
+) -> Settings:
     return Settings(
         discord_token="x",
         notify_channel_id=1,
@@ -169,6 +186,10 @@ def _settings(*, max_concurrency: int = 1, browser_args: tuple[str, ...] = ("--d
         dynamic_browser_timeout_seconds=20,
         dynamic_browser_max_concurrency=max_concurrency,
         dynamic_browser_args=browser_args,
+        dynamic_browser_capture_url_template=capture_url_template,
+        dynamic_browser_long_screenshot_enabled=long_screenshot_enabled,
+        dynamic_browser_opus_fallback_enabled=opus_fallback_enabled,
+        dynamic_browser_opus_fallback_url_template=opus_fallback_url_template,
         dynamic_browser_ua="test-ua",
         dynamic_captcha_address="",
         dynamic_captcha_token="harukabot",
@@ -222,4 +243,85 @@ async def test_capture_respects_max_concurrency(monkeypatch: pytest.MonkeyPatch)
     assert state.new_context_calls == 2
     assert state.max_active_contexts == 1
 
+    await screenshotter.aclose()
+
+
+@pytest.mark.asyncio
+async def test_capture_uses_custom_capture_url_template(monkeypatch: pytest.MonkeyPatch):
+    state = _FakeState()
+    _install_fake_playwright(monkeypatch, state)
+
+    screenshotter = DynamicScreenshotter(
+        _settings(
+            capture_url_template="https://app.bilibili.com/dynamic/{dyn_id}?from={dynamic_url}",
+        )
+    )
+    result = await screenshotter.capture(300, "https://t.bilibili.com/300")
+
+    assert result.error is None
+    assert state.last_goto_url == "https://app.bilibili.com/dynamic/300?from=https://t.bilibili.com/300"
+    await screenshotter.aclose()
+
+
+@pytest.mark.asyncio
+async def test_capture_long_screenshot_mode_uses_full_page(monkeypatch: pytest.MonkeyPatch):
+    state = _FakeState()
+    _install_fake_playwright(monkeypatch, state)
+
+    screenshotter = DynamicScreenshotter(_settings(long_screenshot_enabled=True))
+    result = await screenshotter.capture(400)
+
+    assert result.error is None
+    assert result.image_bytes == b"full-page"
+    assert state.full_page_screenshots == 1
+    assert state.card_screenshots == 0
+    await screenshotter.aclose()
+
+
+@pytest.mark.asyncio
+async def test_capture_falls_back_to_opus_on_app_gate(monkeypatch: pytest.MonkeyPatch):
+    state = _FakeState()
+    _install_fake_playwright(monkeypatch, state)
+
+    screenshotter = DynamicScreenshotter(_settings())
+    urls: list[str] = []
+
+    async def _fake_capture_from_url(*, browser, dynamic_id, dynamic_url, url, timeout_ms):  # noqa: ARG001
+        urls.append(url)
+        if len(urls) == 1:
+            return DynamicScreenshot(image_bytes=None, error="app-gated")
+        return DynamicScreenshot(image_bytes=b"opus-fallback", error=None)
+
+    monkeypatch.setattr(screenshotter, "_capture_from_url", _fake_capture_from_url)
+
+    result = await screenshotter.capture(500, "https://t.bilibili.com/500")
+
+    assert result.image_bytes == b"opus-fallback"
+    assert result.error is None
+    assert urls == [
+        "https://m.bilibili.com/dynamic/500",
+        "https://www.bilibili.com/opus/500",
+    ]
+    await screenshotter.aclose()
+
+
+@pytest.mark.asyncio
+async def test_capture_skips_opus_fallback_when_disabled(monkeypatch: pytest.MonkeyPatch):
+    state = _FakeState()
+    _install_fake_playwright(monkeypatch, state)
+
+    screenshotter = DynamicScreenshotter(_settings(opus_fallback_enabled=False))
+    urls: list[str] = []
+
+    async def _fake_capture_from_url(*, browser, dynamic_id, dynamic_url, url, timeout_ms):  # noqa: ARG001
+        urls.append(url)
+        return DynamicScreenshot(image_bytes=None, error="app-gated")
+
+    monkeypatch.setattr(screenshotter, "_capture_from_url", _fake_capture_from_url)
+
+    result = await screenshotter.capture(501, "https://t.bilibili.com/501")
+
+    assert result.image_bytes is None
+    assert result.error == "app-gated"
+    assert urls == ["https://m.bilibili.com/dynamic/501"]
     await screenshotter.aclose()
