@@ -288,6 +288,7 @@ class BiliDiscordBot(commands.Bot):
             self.poll_live_status.cancel()
         if self.poll_dynamic_status.is_running():
             self.poll_dynamic_status.cancel()
+        await self.dynamic_screenshotter.aclose()
         self.store.close()
         await super().close()
 

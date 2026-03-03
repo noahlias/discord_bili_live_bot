@@ -49,6 +49,8 @@ def _settings(db_path: str, *, gap: float = 0) -> Settings:
         dynamic_screenshot_enabled=True,
         dynamic_browser_screenshot_enabled=False,
         dynamic_browser_timeout_seconds=20,
+        dynamic_browser_max_concurrency=1,
+        dynamic_browser_args=("--disable-dev-shm-usage",),
         dynamic_browser_ua="test-ua",
         dynamic_captcha_address="",
         dynamic_captcha_token="harukabot",
@@ -181,3 +183,32 @@ async def test_dynamic_poll_honors_request_gap(monkeypatch, tmp_path):
     assert sleep_calls == [0.5]
 
     await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_bot_close_closes_dynamic_screenshotter(monkeypatch, tmp_path):
+    db_path = tmp_path / "bot.db"
+    store = SubscriptionStore(str(db_path))
+
+    bot = BiliDiscordBot(
+        settings=_settings(str(db_path)),
+        store=store,
+        bili_client=BiliClient(),
+        dynamic_client=_SequenceDynamicClient({}),
+        tracker=StatusTracker(),
+    )
+
+    closed = {"value": False}
+
+    async def _fake_aclose() -> None:
+        closed["value"] = True
+
+    async def _fake_super_close(self) -> None:  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(bot.dynamic_screenshotter, "aclose", _fake_aclose)
+    monkeypatch.setattr("discord_live_bot.bot.commands.Bot.close", _fake_super_close)
+
+    await bot.close()
+
+    assert closed["value"] is True

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from dataclasses import dataclass
+from typing import Any
 
 from loguru import logger
 
@@ -17,6 +19,11 @@ class DynamicScreenshot:
 class DynamicScreenshotter:
     def __init__(self, settings: Settings):
         self._settings = settings
+        self._init_lock = asyncio.Lock()
+        self._capture_semaphore = asyncio.Semaphore(settings.dynamic_browser_max_concurrency)
+        self._playwright: Any | None = None
+        self._browser: Any | None = None
+        self._playwright_timeout_error: type[Exception] | None = None
 
     async def capture(self, dynamic_id: int) -> DynamicScreenshot:
         if not self._settings.dynamic_screenshot_enabled:
@@ -25,23 +32,23 @@ class DynamicScreenshotter:
             return DynamicScreenshot(image_bytes=None, error="browser-disabled")
 
         try:
-            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
-            from playwright.async_api import async_playwright
-        except Exception:
+            timeout_error = await self._ensure_browser_started()
+        except RuntimeError:
             return DynamicScreenshot(image_bytes=None, error="playwright-not-installed")
 
         url = f"https://m.bilibili.com/dynamic/{dynamic_id}"
         timeout_ms = self._settings.dynamic_browser_timeout_seconds * 1000
 
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+            async with self._capture_semaphore:
+                browser = await self._get_browser()
+                context = await browser.new_context(
+                    user_agent=self._settings.dynamic_browser_ua,
+                    viewport={"width": 1080, "height": 1920},
+                    device_scale_factor=2,
+                )
                 try:
-                    page = await browser.new_page(
-                        user_agent=self._settings.dynamic_browser_ua,
-                        viewport={"width": 1080, "height": 1920},
-                        device_scale_factor=2,
-                    )
+                    page = await context.new_page()
 
                     page = await self._goto_with_optional_captcha(page, url, timeout_ms)
                     await page.wait_for_load_state("domcontentloaded")
@@ -74,12 +81,90 @@ class DynamicScreenshotter:
                     image = await page.screenshot(full_page=True, type="jpeg", quality=95)
                     return DynamicScreenshot(image_bytes=image, error="full-page-fallback")
                 finally:
-                    await browser.close()
-        except PlaywrightTimeoutError:
+                    with contextlib.suppress(Exception):
+                        await context.close()
+        except timeout_error:
             return DynamicScreenshot(image_bytes=None, error="timeout")
         except Exception as exc:
             logger.debug("Dynamic screenshot failed for {}: {}", dynamic_id, exc)
             return DynamicScreenshot(image_bytes=None, error="capture-failed")
+
+    async def aclose(self) -> None:
+        async with self._init_lock:
+            browser = self._browser
+            playwright = self._playwright
+            self._browser = None
+            self._playwright = None
+            self._playwright_timeout_error = None
+
+        if browser is not None:
+            with contextlib.suppress(Exception):
+                await browser.close()
+        if playwright is not None:
+            with contextlib.suppress(Exception):
+                await playwright.stop()
+
+    async def _ensure_browser_started(self) -> type[Exception]:
+        if self._browser is not None and self._playwright_timeout_error is not None:
+            with contextlib.suppress(Exception):
+                if self._browser.is_connected():
+                    return self._playwright_timeout_error
+
+        async with self._init_lock:
+            if self._browser is not None and self._playwright_timeout_error is not None:
+                with contextlib.suppress(Exception):
+                    if self._browser.is_connected():
+                        return self._playwright_timeout_error
+
+            await self._close_started_browser_locked()
+
+            try:
+                from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+                from playwright.async_api import async_playwright
+            except Exception as exc:
+                raise RuntimeError("playwright-not-installed") from exc
+
+            playwright = await async_playwright().start()
+            try:
+                browser = await playwright.chromium.launch(
+                    headless=True,
+                    args=list(self._settings.dynamic_browser_args),
+                )
+            except Exception:
+                with contextlib.suppress(Exception):
+                    await playwright.stop()
+                raise
+
+            self._playwright = playwright
+            self._browser = browser
+            self._playwright_timeout_error = PlaywrightTimeoutError
+            return PlaywrightTimeoutError
+
+    async def _get_browser(self) -> Any:
+        browser = self._browser
+        if browser is not None:
+            with contextlib.suppress(Exception):
+                if browser.is_connected():
+                    return browser
+        await self._ensure_browser_started()
+        browser = self._browser
+        if browser is None:
+            raise RuntimeError("browser-not-initialized")
+        return browser
+
+    async def _close_started_browser_locked(self) -> None:
+        browser = self._browser
+        playwright = self._playwright
+        self._browser = None
+        self._playwright = None
+        self._playwright_timeout_error = None
+
+        if browser is not None:
+            with contextlib.suppress(Exception):
+                await browser.close()
+        if playwright is not None:
+            with contextlib.suppress(Exception):
+                await playwright.stop()
 
     async def _goto_with_optional_captcha(self, page, url: str, timeout_ms: int):
         if not self._settings.dynamic_captcha_address:

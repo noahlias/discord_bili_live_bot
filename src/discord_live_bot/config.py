@@ -53,6 +53,8 @@ class Settings:
     dynamic_screenshot_template: str
     dynamic_browser_screenshot_enabled: bool
     dynamic_browser_timeout_seconds: int
+    dynamic_browser_max_concurrency: int
+    dynamic_browser_args: tuple[str, ...]
     dynamic_browser_ua: str
     dynamic_captcha_address: str
     dynamic_captcha_token: str
@@ -110,6 +112,22 @@ class Settings:
             raise ValueError("BILI_DYNAMIC_BROWSER_TIMEOUT_SECONDS must be an integer") from exc
         if dynamic_browser_timeout_seconds <= 0:
             raise ValueError("BILI_DYNAMIC_BROWSER_TIMEOUT_SECONDS must be > 0")
+        dynamic_browser_max_concurrency_raw = (
+            os.getenv("BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY", "1").strip() or "1"
+        )
+        try:
+            dynamic_browser_max_concurrency = int(dynamic_browser_max_concurrency_raw)
+        except ValueError as exc:
+            raise ValueError("BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY must be an integer") from exc
+        if dynamic_browser_max_concurrency <= 0:
+            raise ValueError("BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY must be > 0")
+        dynamic_browser_args_raw = (
+            os.getenv("BILI_DYNAMIC_BROWSER_ARGS", "--disable-dev-shm-usage").strip()
+            or "--disable-dev-shm-usage"
+        )
+        dynamic_browser_args = tuple(
+            value.strip() for value in dynamic_browser_args_raw.split(",") if value.strip()
+        )
         dynamic_browser_ua = (
             os.getenv(
                 "BILI_DYNAMIC_BROWSER_UA",
@@ -143,6 +161,8 @@ class Settings:
             dynamic_screenshot_template=dynamic_screenshot_template,
             dynamic_browser_screenshot_enabled=dynamic_browser_screenshot_enabled,
             dynamic_browser_timeout_seconds=dynamic_browser_timeout_seconds,
+            dynamic_browser_max_concurrency=dynamic_browser_max_concurrency,
+            dynamic_browser_args=dynamic_browser_args,
             dynamic_browser_ua=dynamic_browser_ua,
             dynamic_captcha_address=dynamic_captcha_address,
             dynamic_captcha_token=dynamic_captcha_token,

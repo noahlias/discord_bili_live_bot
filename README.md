@@ -201,6 +201,8 @@ You can also pass a custom config path:
 - `BILI_DYNAMIC_SCREENSHOT_ENABLED`: Enable screenshot/cover image on dynamic cards, default `true`
 - `BILI_DYNAMIC_BROWSER_SCREENSHOT_ENABLED`: Prefer real browser screenshot capture, default `true`
 - `BILI_DYNAMIC_BROWSER_TIMEOUT_SECONDS`: Browser screenshot timeout, default `25`
+- `BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY`: Max in-flight browser screenshot captures, default `1`
+- `BILI_DYNAMIC_BROWSER_ARGS`: Comma-separated Chromium launch args, default `--disable-dev-shm-usage`
 - `BILI_DYNAMIC_BROWSER_UA`: Browser UA for dynamic page rendering
 - `BILI_DYNAMIC_CAPTCHA_ADDRESS`: Optional captcha solver server address (Haruka style)
 - `BILI_DYNAMIC_CAPTCHA_TOKEN`: Optional captcha solver token
@@ -217,6 +219,13 @@ uv run playwright install chromium
 ```
 
 Docker image already installs Chromium and required runtime libraries at build time, so no extra Playwright install step is needed inside container.
+
+For Linux Docker stability, keep:
+
+```bash
+BILI_DYNAMIC_BROWSER_MAX_CONCURRENCY=1
+BILI_DYNAMIC_BROWSER_ARGS=--disable-dev-shm-usage
+```
 
 Optional captcha solving (Haruka-style) can be enabled by installing solver package manually:
 
