@@ -5,6 +5,8 @@
 
 ![dynamic](assets/dynamic.png)
 
+![live_stream_audio](assets/audio_play.png)
+
 Discord bot subproject for tracking Bilibili live status with slash commands, rich embeds, and link buttons.
 
 ## Features
