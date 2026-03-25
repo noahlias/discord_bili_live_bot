@@ -45,6 +45,7 @@ class Settings:
     discord_token: str
     notify_channel_id: int
     guild_id: int | None
+    bili_voice_fixed_channel_id: int | None
     poll_interval_seconds: int
     dynamic_enabled: bool
     dynamic_poll_interval_seconds: int
@@ -67,6 +68,9 @@ class Settings:
     dota_enabled: bool = True
     dota_recent_match_limit: int = 5
     dota_http_timeout_seconds: int = 15
+    bili_voice_enabled: bool = True
+    bili_voice_streamlink_quality: str = "audio_only"
+    bili_voice_ffmpeg_path: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -192,6 +196,12 @@ class Settings:
         if dota_http_timeout_seconds <= 0:
             raise ValueError("DOTA_HTTP_TIMEOUT_SECONDS must be > 0")
 
+        bili_voice_enabled = _optional_bool("BILI_VOICE_ENABLED", True)
+        bili_voice_streamlink_quality = (
+            os.getenv("BILI_VOICE_STREAMLINK_QUALITY", "audio_only").strip() or "audio_only"
+        )
+        bili_voice_ffmpeg_path = os.getenv("BILI_VOICE_FFMPEG_PATH", "").strip()
+
         sqlite_path = os.getenv("SQLITE_PATH", "data/subscriptions.db").strip() or "data/subscriptions.db"
         log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
@@ -199,6 +209,7 @@ class Settings:
             discord_token=_require_env("DISCORD_TOKEN"),
             notify_channel_id=_required_int("DISCORD_NOTIFY_CHANNEL_ID"),
             guild_id=_optional_int("DISCORD_GUILD_ID"),
+            bili_voice_fixed_channel_id=_optional_int("BILI_VOICE_FIXED_CHANNEL_ID"),
             poll_interval_seconds=poll_interval,
             dynamic_enabled=dynamic_enabled,
             dynamic_poll_interval_seconds=dynamic_poll_interval,
@@ -219,6 +230,9 @@ class Settings:
             dota_enabled=dota_enabled,
             dota_recent_match_limit=dota_recent_match_limit,
             dota_http_timeout_seconds=dota_http_timeout_seconds,
+            bili_voice_enabled=bili_voice_enabled,
+            bili_voice_streamlink_quality=bili_voice_streamlink_quality,
+            bili_voice_ffmpeg_path=bili_voice_ffmpeg_path,
             sqlite_path=sqlite_path,
             log_level=log_level,
         )

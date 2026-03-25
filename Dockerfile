@@ -28,7 +28,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates ffmpeg libopus0 \
     && if [ "$INSTALL_PLAYWRIGHT" = "1" ]; then \
       apt-get install -y --no-install-recommends \
       fontconfig \

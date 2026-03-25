@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import sys
+from ctypes.util import find_library
 
+import discord
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -23,10 +25,44 @@ def _setup_logger(level: str) -> None:
     )
 
 
+def _ensure_opus_loaded() -> None:
+    if discord.opus.is_loaded():
+        return
+
+    candidates: list[str] = []
+    found = find_library("opus")
+    if found:
+        candidates.append(found)
+    candidates.extend(
+        [
+            "/opt/Homebrew/lib/libopus.dylib",
+            "/usr/local/lib/libopus.dylib",
+            "libopus.so.0",
+            "libopus.so.1",
+        ]
+    )
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            discord.opus.load_opus(candidate)
+        except OSError:
+            continue
+        logger.info("Loaded opus library from {}", candidate)
+        return
+
+    logger.warning("Failed to load opus library. PCM voice playback will not work.")
+
+
 def main() -> None:
     load_dotenv()
     settings = Settings.from_env()
     _setup_logger(settings.log_level)
+    if settings.bili_voice_enabled:
+        _ensure_opus_loaded()
 
     store = SubscriptionStore(settings.sqlite_path)
     client = BiliClient()

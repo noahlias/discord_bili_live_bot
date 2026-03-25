@@ -9,7 +9,7 @@ Discord bot subproject for tracking Bilibili live status with slash commands, ri
 
 ## Features
 
-- Slash commands: `/subscribe`, `/unsubscribe`, `/list`, `/live`, `/dota_player`, `/help`
+- Slash commands: `/subscribe`, `/unsubscribe`, `/list`, `/live`, `/voice_live`, `/voice_stop`, `/voice_leave`, `/dota_player`, `/help`
 - Test command: `/test_dynamic_push` to send a real dynamic preview immediately
 - `/unsubscribe` supports UID autocomplete from current subscriptions
 - Rich Discord embeds for live/offline transitions
@@ -19,6 +19,7 @@ Discord bot subproject for tracking Bilibili live status with slash commands, ri
 - Direct Bilibili API via `httpx` with normalized image URLs
 - Dota2 search command powered by OpenDota (`/dota_player`)
 - `/dota_player` account autocomplete learns from your search history and ranks by frequency
+- Bilibili live audio playback in Discord voice via `/voice_live`
 
 ## Requirements
 
@@ -216,8 +217,20 @@ You can also pass a custom config path:
 - `DOTA_ENABLED`: Enable `/dota_player` command, default `true`
 - `DOTA_RECENT_MATCH_LIMIT`: Number of recent matches displayed, default `5` (range `1..10`)
 - `DOTA_HTTP_TIMEOUT_SECONDS`: OpenDota request timeout, default `15`
+- `BILI_VOICE_ENABLED`: Enable Bilibili voice playback commands, default `true`
+- `BILI_VOICE_STREAMLINK_QUALITY`: Preferred streamlink quality, default `audio_only`
+- `BILI_VOICE_FFMPEG_PATH`: Optional ffmpeg path override, default PATH lookup
+- `BILI_VOICE_FIXED_CHANNEL_ID`: Optional fixed Discord voice channel id; when set, voice playback targets this channel instead of the caller's voice channel
 - `SQLITE_PATH`: SQLite file path, default `data/subscriptions.db`
 - `LOG_LEVEL`: `DEBUG`/`INFO`/`WARNING`/`ERROR`
+
+## Bilibili Voice Commands
+
+- `/voice_live`
+- `/voice_stop`
+- `/voice_leave`
+- `/voice_live` shows only currently live subscribed Bilibili users in a dropdown and starts playback after selection.
+- If `BILI_VOICE_FIXED_CHANNEL_ID` is set, the bot plays in that configured voice channel and does not require the command user to already be in voice.
 
 ## Dota2 Search Command
 
@@ -243,6 +256,9 @@ uv run playwright install chromium
 ```
 
 Docker image already installs Chromium and required runtime libraries at build time, so no extra Playwright install step is needed inside container.
+
+For voice playback, the Docker image also installs `ffmpeg`, and the Python environment includes `PyNaCl` and `streamlink`.
+The bot now auto-loads `libopus` on startup when voice is enabled; on macOS/Homebrew it will try the detected `opus` library path automatically.
 
 For Linux Docker stability, keep:
 

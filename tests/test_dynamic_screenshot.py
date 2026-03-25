@@ -176,6 +176,7 @@ def _settings(
         discord_token="x",
         notify_channel_id=1,
         guild_id=None,
+        bili_voice_fixed_channel_id=None,
         poll_interval_seconds=30,
         dynamic_enabled=True,
         dynamic_poll_interval_seconds=60,
@@ -195,6 +196,9 @@ def _settings(
         dynamic_captcha_token="harukabot",
         sqlite_path=":memory:",
         log_level="INFO",
+        bili_voice_enabled=True,
+        bili_voice_streamlink_quality="audio_only",
+        bili_voice_ffmpeg_path="",
     )
 
 

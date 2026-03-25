@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from loguru import logger
 
+from .bili_voice import BiliVoiceCog, BiliVoiceManager, BiliVoiceService
 from .bili_client import BiliClient, RoomInfo
 from .config import Settings
 from .db import SubscriptionStore
@@ -122,6 +123,13 @@ class SubscriptionCog(commands.Cog):
         embed.add_field(name="/unsubscribe uid", value="Unfollow a UID / 取消订阅", inline=False)
         embed.add_field(name="/list", value="Show all followed users / 查看全部订阅", inline=False)
         embed.add_field(name="/live", value="Show users currently live / 查看当前开播", inline=False)
+        embed.add_field(
+            name="/voice_live",
+            value="Pick a live subscribed Bilibili stream and play audio in voice / 语音播放直播",
+            inline=False,
+        )
+        embed.add_field(name="/voice_stop", value="Stop current voice playback / 停止语音播放", inline=False)
+        embed.add_field(name="/voice_leave", value="Disconnect from voice / 离开语音频道", inline=False)
         embed.add_field(
             name="/dota_player account [match_id]",
             value="Search Dota2 profile and recent match cards / 查询 Dota2 战绩",
@@ -258,9 +266,12 @@ class BiliDiscordBot(commands.Bot):
         dynamic_client: DynamicClient,
         tracker: StatusTracker,
         dota_service: DotaService | None = None,
+        voice_service: BiliVoiceService | None = None,
+        voice_manager: BiliVoiceManager | None = None,
     ):
         intents = discord.Intents.none()
         intents.guilds = True
+        intents.voice_states = True
         super().__init__(command_prefix="!", intents=intents)
 
         self.settings = settings
@@ -275,11 +286,15 @@ class BiliDiscordBot(commands.Bot):
                 recent_match_limit=settings.dota_recent_match_limit,
             )
         self.dota_service = dota_service
+        self.voice_service = voice_service or BiliVoiceService(bili_client)
+        self.voice_manager = voice_manager or BiliVoiceManager(settings)
 
     async def setup_hook(self) -> None:
         await self.add_cog(SubscriptionCog(self))
         if self.settings.dota_enabled:
             await self.add_cog(DotaCog(self))
+        if self.settings.bili_voice_enabled:
+            await self.add_cog(BiliVoiceCog(self))
 
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)
@@ -304,6 +319,7 @@ class BiliDiscordBot(commands.Bot):
         if self.poll_dynamic_status.is_running():
             self.poll_dynamic_status.cancel()
         await self.dynamic_screenshotter.aclose()
+        await self.voice_manager.aclose(self)
         self.store.close()
         await super().close()
 

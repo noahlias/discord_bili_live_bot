@@ -42,6 +42,7 @@ def _settings(db_path: str, *, gap: float = 0) -> Settings:
         discord_token="x",
         notify_channel_id=1,
         guild_id=None,
+        bili_voice_fixed_channel_id=None,
         poll_interval_seconds=30,
         dynamic_enabled=True,
         dynamic_poll_interval_seconds=60,
@@ -61,6 +62,9 @@ def _settings(db_path: str, *, gap: float = 0) -> Settings:
         dynamic_screenshot_template="https://image.thum.io/get/width/1200/noanimate/https://t.bilibili.com/{dyn_id}",
         sqlite_path=db_path,
         log_level="INFO",
+        bili_voice_enabled=True,
+        bili_voice_streamlink_quality="audio_only",
+        bili_voice_ffmpeg_path="",
     )
 
 
